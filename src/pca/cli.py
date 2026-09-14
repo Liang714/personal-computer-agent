@@ -9,6 +9,7 @@ from pca.agent.limits import Budget, BudgetTracker
 from pca.agent.machine import Agent
 from pca.broker.approval import AlwaysApprove, ApprovalUI, CliApproval
 from pca.broker.broker import CapabilityBroker
+from pca.composition import build_registry
 from pca.config import AgentConfig
 from pca.core.types import ActionProposal
 from pca.models.gateway import ModelProvider
@@ -17,10 +18,6 @@ from pca.models.scripted import ScriptedProvider
 from pca.policy.paths import Workspace
 from pca.policy.permissions import PermissionPolicy
 from pca.store.events import EventStore
-from pca.tools.filesystem.delete import delete_tools
-from pca.tools.filesystem.read import read_tools
-from pca.tools.filesystem.write import write_tools
-from pca.tools.registry import ToolRegistry
 
 
 def build_agent(config: AgentConfig, script: list[list[ActionProposal]] | None = None) -> Agent:
@@ -30,10 +27,6 @@ def build_agent(config: AgentConfig, script: list[list[ActionProposal]] | None =
 
     workspace = Workspace(roots=config.workspace_roots, trash=config.trash)
 
-    registry = ToolRegistry()
-    for tool in (*read_tools(), *write_tools(), *delete_tools()):
-        registry.register(tool)
-
     approval: ApprovalUI = AlwaysApprove() if config.auto_approve else CliApproval()
     provider: ModelProvider = (
         OllamaProvider(model=config.ollama_model)
@@ -42,7 +35,7 @@ def build_agent(config: AgentConfig, script: list[list[ActionProposal]] | None =
     )
 
     broker = CapabilityBroker(
-        registry=registry,
+        registry=build_registry(),
         permissions=PermissionPolicy.default(),
         workspace=workspace,
         approval=approval,

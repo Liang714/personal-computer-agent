@@ -32,8 +32,14 @@ def test_planner_never_imports_tools() -> None:
     assert not offenders, f"planner must not import tools: {offenders}"
 
 
-def test_only_the_broker_and_cli_construct_a_tool_registry() -> None:
-    allowed = {"broker", "cli.py"}
+def test_only_the_composition_root_constructs_a_tool_registry() -> None:
+    """Tool assembly lives in exactly one module outside the broker.
+
+    Widening this allowlist is how the guard dies one entry at a time. If a new
+    module needs a registry, it should call pca.composition.build_registry()
+    instead — that is what a composition root is for.
+    """
+    allowed = {"broker", "composition.py"}
     offenders: list[Path] = []
     for path in SRC.rglob("*.py"):
         relative = path.relative_to(SRC)
@@ -41,7 +47,7 @@ def test_only_the_broker_and_cli_construct_a_tool_registry() -> None:
             continue
         if "pca.tools.registry" in imported_modules(path):
             offenders.append(relative)
-    assert not offenders, f"only broker/cli may hold a registry: {offenders}"
+    assert not offenders, f"only the broker and composition.py may hold a registry: {offenders}"
 
 
 def test_policy_layer_does_not_depend_on_tools_or_models() -> None:
