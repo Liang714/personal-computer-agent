@@ -1,5 +1,18 @@
 # Benchmark Results
 
+> **CORRECTION IN PROGRESS (2026-09-14).** Every model-backed number below the
+> control baseline was collected while the Ollama provider sent
+> `format: "json"`. That flag only requires output be *some* valid JSON, and a
+> model can satisfy it with `{}`. `qwen3:14b` did exactly that on every task —
+> two tokens, zero actions, 0% — while planning the same task correctly when
+> asked unconstrained. The provider was degrading the model it was measuring.
+>
+> Fixed by sending the actual response schema instead. **The `qwen3:0.6b`
+> figures and the ablation table below are therefore measured under a defect
+> and understate that model.** They are left in place rather than deleted,
+> because silently replacing published numbers is worse than showing the
+> correction, but they must not be cited. Re-measurement is running.
+
 ## Method
 
 Each task declares four things: a goal in natural language, a deterministic
