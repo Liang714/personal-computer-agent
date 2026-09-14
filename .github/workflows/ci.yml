@@ -18,3 +18,6 @@ jobs:
       - run: python -m ruff format --check src tests
       - run: python -m mypy src
       - run: python -m pytest -v
+      # The control suite proves every benchmark task is correctly specified.
+      # It uses the scripted oracle, so it needs no model and no network.
+      - run: python -m pca.cli bench --model scripted --workdir "$RUNNER_TEMP/bench"
