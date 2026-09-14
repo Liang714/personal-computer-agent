@@ -58,3 +58,16 @@ def test_policy_layer_does_not_depend_on_tools_or_models() -> None:
         if any(n.startswith(("pca.tools", "pca.models")) for n in names):
             offenders.append(path.relative_to(SRC))
     assert not offenders, f"policy must stay a leaf dependency: {offenders}"
+
+
+def test_metrics_derive_only_from_the_audit_log() -> None:
+    """Spec D1: metrics are pure functions over events, not instrumentation.
+
+    If a metric needs something the log does not contain, the fix belongs in
+    the log, not in a benchmark-only side channel.
+    """
+    metrics = SRC / "bench" / "metrics.py"
+    assert metrics.is_file(), "the metrics module must exist for this guard to mean anything"
+    forbidden = ("pca.agent", "pca.broker", "pca.tools", "pca.policy")
+    offenders = sorted(name for name in imported_modules(metrics) if name.startswith(forbidden))
+    assert not offenders, f"metrics.py must not import {offenders}"

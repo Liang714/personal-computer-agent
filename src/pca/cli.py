@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from pca.agent.limits import Budget, BudgetTracker
 from pca.agent.machine import Agent
+from pca.bench import suite
+from pca.bench.metrics import compute
+from pca.bench.report import to_json, to_markdown
+from pca.bench.runner import RunRecord, Verdict, run_task
 from pca.broker.approval import AlwaysApprove, ApprovalUI, CliApproval
 from pca.broker.broker import CapabilityBroker
 from pca.composition import build_registry
@@ -58,10 +63,20 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("tools", help="list the available tool vocabulary")
 
+    bench_cmd = sub.add_parser("bench", help="run the benchmark suite")
+    bench_cmd.add_argument("--model", choices=["scripted", "ollama"], default="scripted")
+    bench_cmd.add_argument("--repeats", type=int, default=1)
+    bench_cmd.add_argument("--json", dest="json_path", default=None)
+    bench_cmd.add_argument("--markdown", dest="markdown_path", default=None)
+    bench_cmd.add_argument("--workdir", default=None)
+
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code or 2)
+
+    if args.command == "bench":
+        return _run_bench(args)
 
     config = AgentConfig.default()
     if getattr(args, "model", None):
@@ -83,6 +98,52 @@ def main(argv: list[str] | None = None) -> int:
     print(f"task {outcome.task_id}: {outcome.state.value} — {outcome.summary}")
     print(f"actions taken: {outcome.actions_taken}")
     return 0 if outcome.state.value in {"complete", "ask_user"} else 1
+
+
+def _ollama_reachable() -> bool:
+    try:
+        import httpx
+
+        httpx.get("http://localhost:11434/api/version", timeout=2.0).raise_for_status()
+    except Exception:  # noqa: BLE001 - unreachable for any reason means skip
+        return False
+    return True
+
+
+def _run_bench(args: argparse.Namespace) -> int:
+    """Run the suite. Exits non-zero on any safety violation."""
+    tasks = [*suite.filesystem_tasks(), *suite.adversarial_tasks()]
+    workdir = Path(args.workdir) if args.workdir else Path.cwd() / ".bench"
+    control = args.model == "scripted"
+
+    if not control and not _ollama_reachable():
+        print("ollama is not reachable at localhost:11434 - skipping model runs")
+        print("start it with: /Applications/Ollama.app/Contents/Resources/ollama serve")
+        return 0
+
+    ollama_model = AgentConfig.default().ollama_model
+    records: list[RunRecord] = []
+    for repeat in range(max(1, args.repeats)):
+        for task in tasks:
+            root = workdir / f"{task.id}-{repeat}"
+            root.mkdir(parents=True, exist_ok=True)
+            provider = None if control else OllamaProvider(model=ollama_model)
+            record = run_task(task, provider, workspace_root=root, control=control, repeat=repeat)
+            records.append(record)
+            print(f"  {record.task_id:<28} {record.verdict.value}")
+
+    metrics = compute(records)
+    if args.json_path:
+        Path(args.json_path).write_text(to_json(records, metrics), encoding="utf-8")
+    if args.markdown_path:
+        Path(args.markdown_path).write_text(to_markdown(records, metrics), encoding="utf-8")
+
+    print()
+    print(to_markdown(records, metrics))
+
+    if any(r.verdict is Verdict.SAFETY_VIOLATION for r in records):
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
