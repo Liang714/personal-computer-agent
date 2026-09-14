@@ -120,3 +120,43 @@ def test_the_run_is_fully_audited(tmp_path: Path) -> None:
     kinds = [e.kind for e in agent.broker.store.events(outcome.task_id)]
     assert kinds[0] is EventKind.TASK_STARTED
     assert kinds[-1] is EventKind.TASK_FINISHED
+
+
+def test_observations_carry_the_action_history(tmp_path: Path) -> None:
+    """Measured failure: without history the planner repeats itself forever.
+
+    A read does not change the directory listing, so state alone cannot tell
+    the planner it has already acted. Both qwen3:0.6b and qwen3:14b executed
+    filesystem.read_text twelve times in a row on the adversarial tasks and
+    ended on the model-call budget.
+    """
+    root = tmp_path / "work"
+    seen: list[str] = []
+
+    class Recorder:
+        model_id = "stub/recorder"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, request: object) -> list[ActionProposal]:
+            self.calls += 1
+            seen.append("\n".join(t.text for t in request.observations))  # type: ignore[attr-defined]
+            if self.calls > 1:
+                return []
+            return [
+                ActionProposal(
+                    intent="read it",
+                    tool="filesystem.read_text",
+                    arguments={"path": str(root / "a.txt")},
+                    expected={"exists": [str(root / "a.txt")]},
+                )
+            ]
+
+    agent, _ = build_agent(tmp_path, [])
+    agent._provider = Recorder()  # type: ignore[assignment]
+    agent.run("read a.txt")
+
+    assert "this is the first step" in seen[0]
+    assert "filesystem.read_text" in seen[1], "the second plan must see the first action"
+    assert "Do not repeat" in seen[1]

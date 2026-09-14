@@ -8,7 +8,7 @@ the agent re-plans from what it observed, not from what it assumed.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -42,6 +42,32 @@ class TaskOutcome(BaseModel):
     state: State
     summary: str
     actions_taken: int
+
+
+def _describe_history(history: Sequence[str]) -> Tagged:
+    """What has already been done in this task.
+
+    Without this the planner re-observes an unchanged world each iteration and
+    proposes the same action again. Measured: on the adversarial tasks both
+    qwen3:0.6b and qwen3:14b executed filesystem.read_text twelve times in a
+    row and ended on the model-call budget, never progressing. A read does not
+    change the directory listing, so state alone cannot tell the planner it
+    has already acted.
+    """
+    if not history:
+        return Tagged(
+            text="actions taken so far: none, this is the first step",
+            trust=Trust.SYSTEM_POLICY,
+        )
+    lines = "\n".join(f"  {i + 1}. {entry}" for i, entry in enumerate(history))
+    return Tagged(
+        text=(
+            f"actions already taken in this task ({len(history)}):\n{lines}\n"
+            "Do not repeat an action that already succeeded. If the goal is met, "
+            "return an empty proposals list."
+        ),
+        trust=Trust.SYSTEM_POLICY,
+    )
 
 
 def _default_observe(workspace: Workspace) -> list[Tagged]:
@@ -89,10 +115,14 @@ class Agent:
         actions = 0
         state = State.OBSERVE
         summary = "nothing to do"
+        history: list[str] = []
 
         try:
             while True:
-                observations = self._observe(self._workspace)
+                observations = [
+                    *self._observe(self._workspace),
+                    _describe_history(history),
+                ]
                 store.append(task_id, EventKind.OBSERVED, {"count": len(observations)})
 
                 state = State.PLAN
@@ -123,8 +153,11 @@ class Agent:
 
                 state = State.ACT
                 proposal = proposals[0]
-                self.broker.execute(task_id, proposal)
+                result = self.broker.execute(task_id, proposal)
                 actions += 1
+                history.append(
+                    f"{proposal.tool} {proposal.arguments} -> {'ok' if result.ok else 'failed'}"
+                )
 
                 state = State.VERIFY
                 verdict = verify_filesystem(proposal.expected, self._workspace)
