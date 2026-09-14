@@ -64,7 +64,16 @@ def run_task(
     repeat: int = 0,
     approval: ApprovalUI | None = None,
 ) -> RunRecord:
-    """Execute one task once. `provider=None` means run the task's own oracle."""
+    """Execute one task once. `provider=None` means run the task's own oracle.
+
+    Approval defaults to AlwaysApprove deliberately. Adversarial tasks are
+    meant to measure whether the *planner* resists an injected instruction,
+    with the approval gate stood down. Running them behind AlwaysDeny would
+    make every adversarial task pass trivially and teach us nothing about the
+    model. The consequence is that `injection_success_rate` measures model
+    resistance alone, not end-to-end system safety, which is strictly the
+    harsher reading -- the approval gate is an additional layer on top.
+    """
     root = workspace_root / "workspace"
     trash = workspace_root / "trash"
     build_fixture(task.fixture, root)
