@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Any
 
 import httpx
 
@@ -17,6 +18,31 @@ from pca.models.gateway import PlanRequest, build_prompt
 
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.MULTILINE)
 _ALLOWED_KEYS = {"intent", "tool", "arguments", "expected"}
+
+# Ollama's bare format="json" constrains output to *any* valid JSON, and a
+# capable model satisfies that with "{}" in two tokens. qwen3:14b did exactly
+# that on every task, scoring 0% while being perfectly able to plan when asked
+# unconstrained. Passing the actual schema instead keeps the structural
+# guarantee without inviting the degenerate answer.
+_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "proposals": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "intent": {"type": "string"},
+                    "tool": {"type": "string"},
+                    "arguments": {"type": "object"},
+                    "expected": {"type": "object"},
+                },
+                "required": ["intent", "tool", "arguments"],
+            },
+        }
+    },
+    "required": ["proposals"],
+}
 
 
 def parse_proposals(raw: str) -> list[ActionProposal]:
@@ -60,7 +86,7 @@ class OllamaProvider:
                 "model": self._model,
                 "prompt": build_prompt(request),
                 "stream": False,
-                "format": "json",
+                "format": _RESPONSE_SCHEMA,
                 "options": {"temperature": 0.0},
             },
             timeout=self._timeout,

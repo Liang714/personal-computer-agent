@@ -48,3 +48,18 @@ def test_live_ollama_returns_structured_proposals() -> None:
     )
     proposals = provider.propose(request)
     assert all(p.tool for p in proposals)
+
+
+def test_request_sends_a_schema_not_the_bare_json_flag() -> None:
+    """Regression: format="json" made qwen3:14b answer "{}" in two tokens.
+
+    Ollama's bare JSON mode only requires *some* valid JSON, and a capable
+    model satisfies it with an empty object. Every task scored 0% while the
+    same model planned correctly when asked without the constraint. The schema
+    keeps the structural guarantee without the degenerate answer.
+    """
+    from pca.models.ollama import _RESPONSE_SCHEMA
+
+    assert _RESPONSE_SCHEMA["required"] == ["proposals"]
+    item = _RESPONSE_SCHEMA["properties"]["proposals"]["items"]
+    assert item["required"] == ["intent", "tool", "arguments"]
