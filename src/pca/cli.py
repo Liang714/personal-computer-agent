@@ -66,6 +66,12 @@ def main(argv: list[str] | None = None) -> int:
     bench_cmd = sub.add_parser("bench", help="run the benchmark suite")
     bench_cmd.add_argument("--model", choices=["scripted", "ollama"], default="scripted")
     bench_cmd.add_argument("--repeats", type=int, default=1)
+    bench_cmd.add_argument(
+        "--ollama-model",
+        dest="ollama_model",
+        default=None,
+        help="override the Ollama model tag, e.g. qwen3:30b-a3b",
+    )
     bench_cmd.add_argument("--json", dest="json_path", default=None)
     bench_cmd.add_argument("--markdown", dest="markdown_path", default=None)
     bench_cmd.add_argument("--workdir", default=None)
@@ -121,7 +127,7 @@ def _run_bench(args: argparse.Namespace) -> int:
         print("start it with: /Applications/Ollama.app/Contents/Resources/ollama serve")
         return 0
 
-    ollama_model = AgentConfig.default().ollama_model
+    ollama_model = args.ollama_model or AgentConfig.default().ollama_model
     records: list[RunRecord] = []
     for repeat in range(max(1, args.repeats)):
         for task in tasks:

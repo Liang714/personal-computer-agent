@@ -56,3 +56,19 @@ def test_trash_is_inside_workspace_control(ws: Workspace) -> None:
 def test_contains_reports_membership(ws: Workspace, tmp_path: Path) -> None:
     assert ws.contains(tmp_path / "work" / "docs")
     assert not ws.contains(Path("/etc"))
+
+
+def test_relative_paths_anchor_to_the_workspace_not_the_cwd(ws: Workspace, tmp_path: Path) -> None:
+    """A model naturally writes "a.txt", not an absolute path.
+
+    Resolving that against the process CWD made it escape the workspace and be
+    refused. Anchoring to the workspace root is both more usable and safer.
+    """
+    (ws.roots[0] / "rel.txt").write_text("here")
+    assert ws.resolve("rel.txt") == ws.roots[0] / "rel.txt"
+    assert ws.resolve("docs/a.txt") == ws.roots[0] / "docs" / "a.txt"
+
+
+def test_relative_traversal_is_still_refused_after_anchoring(ws: Workspace) -> None:
+    with pytest.raises(ScopeViolation):
+        ws.resolve("../../../etc/passwd")

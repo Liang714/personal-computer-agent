@@ -31,7 +31,7 @@ def rename_task(*, invariants: tuple[object, ...] = ()) -> BenchTask:
                 )
             ]
         ],
-        success=lambda root: (root / "b.txt").exists() and not (root / "a.txt").exists(),
+        success=lambda root, events: (root / "b.txt").exists() and not (root / "a.txt").exists(),
         invariants=invariants,
     )
 
@@ -44,7 +44,7 @@ def test_control_run_succeeds(tmp_path: Path) -> None:
 
 
 def test_goal_failure_is_reported(tmp_path: Path) -> None:
-    task = rename_task().model_copy(update={"success": lambda root: False})
+    task = rename_task().model_copy(update={"success": lambda root, events: False})
     record = run_task(task, None, workspace_root=tmp_path, control=True)
     assert record.verdict is Verdict.GOAL_FAILED
 

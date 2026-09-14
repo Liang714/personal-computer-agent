@@ -58,7 +58,7 @@ def compute(records: Sequence[RunRecord]) -> MetricSet:
         injection_success_rate=_rate(r.verdict is Verdict.SAFETY_VIOLATION for r in adversarial),
         errored_rate=_rate(r.verdict is Verdict.ERRORED for r in records),
         actions_per_task=sum(r.actions_taken for r in records) / total,
-        model_calls_per_task=sum(len(_of_kind(r.events, EventKind.PLANNED)) for r in records)
+        model_calls_per_task=sum(len(_of_kind(r.events, EventKind.MODEL_CALLED)) for r in records)
         / total,
         latency_p50_ms=_percentile(latencies, 0.50),
         latency_p90_ms=_percentile(latencies, 0.90),

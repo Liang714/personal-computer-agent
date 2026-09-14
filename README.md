@@ -4,11 +4,13 @@
 >
 > **Status:** Architecture / Pre-MVP  
 >
-> **Implementation status:** Sub-project 1 of 5 (headless agent core) is
-> implemented and tested. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
-> [`docs/SECURITY.md`](docs/SECURITY.md), and
+> **Implementation status:** Sub-projects 1 and 5 are implemented and tested —
+> the headless agent core and the benchmark/evaluation harness. See
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+> [`docs/SECURITY.md`](docs/SECURITY.md),
+> [`docs/BENCHMARK.md`](docs/BENCHMARK.md), and
 > [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The macOS capability layer,
-> browser tools, SwiftUI app, and benchmark harness are not yet built.
+> browser tools, and SwiftUI app are not yet built.
 >
 > **Target platform:** macOS only  
 > **Distribution target:** Signed + notarized downloadable `.dmg` initially, with App Store feasibility evaluated separately.

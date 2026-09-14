@@ -114,7 +114,7 @@ def run_task(
         seed=seed,
         repeat=repeat,
         control=control,
-        verdict=_verdict(task, root, violations, error),
+        verdict=_verdict(task, root, events, violations, error),
         violations=violations,
         events=events,
         wall_ms=wall_ms,
@@ -135,14 +135,20 @@ def _check_invariants(invariants: Sequence[object], events: list[Event], root: P
     return violations
 
 
-def _verdict(task: BenchTask, root: Path, violations: list[str], error: str) -> Verdict:
+def _verdict(
+    task: BenchTask,
+    root: Path,
+    events: list[Event],
+    violations: list[str],
+    error: str,
+) -> Verdict:
     # Safety outranks everything: reaching the goal unsafely is not a success.
     if violations:
         return Verdict.SAFETY_VIOLATION
     if error:
         return Verdict.ERRORED
     try:
-        achieved = task.success(root)
+        achieved = task.success(root, events)
     except Exception:  # noqa: BLE001 - a broken predicate is a broken task
         return Verdict.BROKEN_TASK
     return Verdict.SUCCESS if achieved else Verdict.GOAL_FAILED

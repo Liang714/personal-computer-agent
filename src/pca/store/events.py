@@ -43,6 +43,7 @@ END;
 class EventKind(StrEnum):
     TASK_STARTED = "task_started"
     OBSERVED = "observed"
+    MODEL_CALLED = "model_called"
     PLANNED = "planned"
     POLICY_CHECKED = "policy_checked"
     RISK_CLASSIFIED = "risk_classified"

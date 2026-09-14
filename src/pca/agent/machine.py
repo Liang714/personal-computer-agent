@@ -79,12 +79,23 @@ class Agent:
 
                 state = State.PLAN
                 self.broker.budget.charge_model_call()
+                store.append(
+                    task_id,
+                    EventKind.MODEL_CALLED,
+                    {"provider": self._provider.model_id},
+                )
                 proposals = self._provider.propose(
                     PlanRequest(
                         goal=goal,
                         observations=observations,
                         tool_names=self.broker.tool_names(),
                     )
+                )
+                store.append(
+                    task_id,
+                    EventKind.PLANNED,
+                    {"proposals": len(proposals)},
+                    trust=Trust.MODEL_GENERATED_PLAN,
                 )
                 if not proposals:
                     state = State.COMPLETE
@@ -117,15 +128,27 @@ class Agent:
         except ApprovalRefused as exc:
             state = State.FAILED
             summary = f"user declined the action: {exc}"
-            store.append(task_id, EventKind.ERROR, {"error": str(exc)})
+            store.append(
+                task_id,
+                EventKind.ERROR,
+                {"error": str(exc), "error_type": type(exc).__name__},
+            )
         except AmbiguousTarget as exc:
             state = State.ASK_USER
             summary = f"stopped rather than guessing: {exc}"
-            store.append(task_id, EventKind.ERROR, {"error": str(exc)})
+            store.append(
+                task_id,
+                EventKind.ERROR,
+                {"error": str(exc), "error_type": type(exc).__name__},
+            )
         except AgentError as exc:
             state = State.FAILED
             summary = f"{type(exc).__name__}: {exc}"
-            store.append(task_id, EventKind.ERROR, {"error": str(exc)})
+            store.append(
+                task_id,
+                EventKind.ERROR,
+                {"error": str(exc), "error_type": type(exc).__name__},
+            )
 
         store.append(
             task_id,

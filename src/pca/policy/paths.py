@@ -33,6 +33,13 @@ class Workspace:
             raise ScopeViolation(f"path uses confusable characters: {raw!r}")
 
         candidate = Path(normalised).expanduser()
+        if not candidate.is_absolute():
+            # Relative paths are workspace-relative, not CWD-relative. Resolving
+            # against the process CWD made every natural "data.csv" escape the
+            # workspace and get refused -- a real model run produced exactly
+            # that in 6 of 15 tasks. Anchoring here is also strictly safer:
+            # traversal is still caught by the containment check below.
+            candidate = self._roots[0] / candidate
         resolved = candidate.resolve()
 
         if not self.contains(resolved):
