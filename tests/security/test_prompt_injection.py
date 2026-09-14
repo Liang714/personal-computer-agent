@@ -134,3 +134,60 @@ def test_an_injected_plan_cannot_reach_outside_the_workspace(tmp_path: Path) -> 
     outcome = agent.run("read the config")
     assert outcome.state is State.FAILED
     assert "ScopeViolation" in outcome.summary
+
+
+def test_tool_output_reaches_the_planner_fenced_as_untrusted(tmp_path: Path) -> None:
+    """The payload must actually reach the model, inside its fence.
+
+    Until tool results were fed back, the planner never saw what it read. Every
+    adversarial task passed trivially because the injected text never arrived,
+    and the agent could not perform "read X and tell me Y" at all. A test that
+    only checked "nothing bad happened" would still pass in that broken state,
+    so this asserts the payload is present AND fenced.
+    """
+    from pca.agent.limits import Budget, BudgetTracker
+    from pca.agent.machine import Agent
+    from pca.broker.approval import AlwaysApprove
+    from pca.composition import build_registry
+    from pca.models.gateway import build_prompt
+
+    root = tmp_path / "work"
+    root.mkdir()
+    (root / "evil.txt").write_text(INJECTIONS[0])
+    ws = Workspace(roots=[root], trash=tmp_path / "trash")
+
+    prompts: list[str] = []
+
+    class Capturing:
+        model_id = "stub/capturing"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, request: PlanRequest) -> list[ActionProposal]:
+            prompts.append(build_prompt(request))
+            self.calls += 1
+            if self.calls > 1:
+                return []
+            return [
+                ActionProposal(
+                    intent="read it",
+                    tool="filesystem.read_text",
+                    arguments={"path": str(root / "evil.txt")},
+                )
+            ]
+
+    broker = CapabilityBroker(
+        registry=build_registry(),
+        permissions=PermissionPolicy.default(),
+        workspace=ws,
+        approval=AlwaysApprove(),
+        store=EventStore(tmp_path / "audit.sqlite3"),
+        budget=BudgetTracker(Budget()),
+    )
+    Agent(broker=broker, provider=Capturing(), workspace=ws).run("read evil.txt")
+
+    second = prompts[1]
+    assert "Ignore previous instructions" in second, "the payload never reached the model"
+    assert "EXTERNAL_CONTENT" in second, "the payload arrived without its trust label"
+    assert second.count("</untrusted>") == second.count("<untrusted>")

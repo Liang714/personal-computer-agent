@@ -7,6 +7,7 @@ the agent re-plans from what it observed, not from what it assumed.
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Callable, Sequence
 from enum import StrEnum
@@ -16,10 +17,15 @@ from pydantic import BaseModel, ConfigDict
 from pca.broker.broker import CapabilityBroker
 from pca.core.errors import AgentError, AmbiguousTarget, ApprovalRefused
 from pca.core.provenance import Tagged, Trust
+from pca.core.types import ActionProposal, ToolResult
 from pca.models.gateway import ModelProvider, PlanRequest
 from pca.policy.paths import Workspace
 from pca.store.events import EventKind
 from pca.verify.filesystem import verify_filesystem
+
+# Tool output is fenced before it reaches the model, but a huge blob still
+# crowds out the instructions, so it is capped.
+_MAX_RESULT_CHARS = 4000
 
 
 class State(StrEnum):
@@ -42,6 +48,24 @@ class TaskOutcome(BaseModel):
     state: State
     summary: str
     actions_taken: int
+
+
+def _describe_result(proposal: ActionProposal, result: ToolResult) -> Tagged:
+    """Feed a tool's output back to the planner, at the tool's own trust level.
+
+    Without this the planner never sees what it read. The agent could not
+    perform "read X and tell me Y" at all, and every adversarial task passed
+    trivially because the injected payload never reached the model. The
+    Tagged/Trust fencing was built exactly for this path and, until now,
+    nothing used it.
+    """
+    body = json.dumps(result.data, default=str)
+    if len(body) > _MAX_RESULT_CHARS:
+        body = body[:_MAX_RESULT_CHARS] + f"... (truncated, {len(body)} chars total)"
+    return Tagged(
+        text=f"output of {proposal.tool}:\n{body}",
+        trust=result.trust,
+    )
 
 
 def _describe_history(history: Sequence[str]) -> Tagged:
@@ -116,12 +140,14 @@ class Agent:
         state = State.OBSERVE
         summary = "nothing to do"
         history: list[str] = []
+        recent_output: list[Tagged] = []
 
         try:
             while True:
                 observations = [
                     *self._observe(self._workspace),
                     _describe_history(history),
+                    *recent_output,
                 ]
                 store.append(task_id, EventKind.OBSERVED, {"count": len(observations)})
 
@@ -158,6 +184,9 @@ class Agent:
                 history.append(
                     f"{proposal.tool} {proposal.arguments} -> {'ok' if result.ok else 'failed'}"
                 )
+                # Only the most recent output: older blobs are already reflected
+                # in the workspace listing and in the history lines above.
+                recent_output = [_describe_result(proposal, result)]
 
                 state = State.VERIFY
                 verdict = verify_filesystem(proposal.expected, self._workspace)
