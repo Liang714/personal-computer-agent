@@ -88,9 +88,7 @@ class CapabilityBroker:
         )
         return result
 
-    def _ask(
-        self, task_id: str, proposal: ActionProposal, tool_name: str, risk: RiskLevel
-    ) -> bool:
+    def _ask(self, task_id: str, proposal: ActionProposal, tool_name: str, risk: RiskLevel) -> bool:
         request = ApprovalRequest(
             intent=proposal.intent,
             tool=tool_name,

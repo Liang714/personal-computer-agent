@@ -28,21 +28,12 @@ def test_ambiguity_asks_the_user_rather_than_guessing() -> None:
 
 
 def test_verification_failure_replans_from_fresh_observation() -> None:
-    assert (
-        choose(VerificationFailed("mismatch"), idempotent=False)
-        is Strategy.REOBSERVE_AND_REPLAN
-    )
+    assert choose(VerificationFailed("mismatch"), idempotent=False) is Strategy.REOBSERVE_AND_REPLAN
 
 
 def test_transient_tool_error_retries_only_when_idempotent() -> None:
-    assert (
-        choose(ToolExecutionError("timeout"), idempotent=True)
-        is Strategy.RETRY_AFTER_REOBSERVE
-    )
-    assert (
-        choose(ToolExecutionError("timeout"), idempotent=False)
-        is Strategy.REOBSERVE_AND_REPLAN
-    )
+    assert choose(ToolExecutionError("timeout"), idempotent=True) is Strategy.RETRY_AFTER_REOBSERVE
+    assert choose(ToolExecutionError("timeout"), idempotent=False) is Strategy.REOBSERVE_AND_REPLAN
 
 
 def test_unknown_error_stops_rather_than_improvising() -> None:

@@ -3,6 +3,13 @@
 > A production-grade, safety-first AI computer-use agent designed for macOS.
 >
 > **Status:** Architecture / Pre-MVP  
+>
+> **Implementation status:** Sub-project 1 of 5 (headless agent core) is
+> implemented and tested. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+> [`docs/SECURITY.md`](docs/SECURITY.md), and
+> [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The macOS capability layer,
+> browser tools, SwiftUI app, and benchmark harness are not yet built.
+>
 > **Target platform:** macOS only  
 > **Distribution target:** Signed + notarized downloadable `.dmg` initially, with App Store feasibility evaluated separately.
 
