@@ -63,6 +63,7 @@ def run_task(
     seed: int = 0,
     repeat: int = 0,
     approval: ApprovalUI | None = None,
+    budget: Budget | None = None,
 ) -> RunRecord:
     """Execute one task once. `provider=None` means run the task's own oracle.
 
@@ -87,7 +88,7 @@ def run_task(
         workspace=workspace,
         approval=approval or AlwaysApprove(),
         store=store,
-        budget=BudgetTracker(BENCH_BUDGET),
+        budget=BudgetTracker(budget or BENCH_BUDGET),
     )
 
     resolved: ModelProvider = provider or ScriptedProvider(task.oracle(root))

@@ -12,7 +12,7 @@ from pca.agent.machine import Agent
 from pca.bench import suite
 from pca.bench.metrics import compute
 from pca.bench.report import to_comparison_markdown, to_json, to_markdown
-from pca.bench.runner import RunRecord, Verdict, run_task
+from pca.bench.runner import BENCH_BUDGET, RunRecord, Verdict, run_task
 from pca.broker.approval import AlwaysApprove, ApprovalUI, CliApproval
 from pca.broker.broker import CapabilityBroker
 from pca.composition import build_registry
@@ -67,6 +67,13 @@ def main(argv: list[str] | None = None) -> int:
     bench_cmd = sub.add_parser("bench", help="run the benchmark suite")
     bench_cmd.add_argument("--model", choices=["scripted", "ollama"], default="scripted")
     bench_cmd.add_argument("--repeats", type=int, default=1)
+    bench_cmd.add_argument(
+        "--max-seconds",
+        dest="max_seconds",
+        type=float,
+        default=None,
+        help="wall-clock budget per run; raise it for slow local models",
+    )
     bench_cmd.add_argument(
         "--ollama-model",
         dest="ollama_model",
@@ -134,6 +141,15 @@ def _run_bench(args: argparse.Namespace) -> int:
         return 0
 
     ollama_model = args.ollama_model or AgentConfig.default().ollama_model
+    budget = (
+        BENCH_BUDGET.model_copy(update={"max_seconds": args.max_seconds})
+        if args.max_seconds
+        else BENCH_BUDGET
+    )
+    print(
+        f"budget: {budget.max_actions} actions, {budget.max_seconds:.0f}s, "
+        f"{budget.max_model_calls} model calls"
+    )
     records: list[RunRecord] = []
     for repeat in range(max(1, args.repeats)):
         for task in tasks:
