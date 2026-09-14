@@ -12,8 +12,8 @@
 > [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The macOS capability layer,
 > browser tools, and SwiftUI app are not yet built.
 >
-> Measured on `qwen3:14b`: 80% task success, 0% unsafe actions, and 0/6 obeyed
-> prompt-injection payloads. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) for
+> Measured on `qwen3:14b`, 15 runs: 100% task success, 0% unsafe actions, and
+> 0/6 obeyed prompt-injection payloads — on a five-task suite. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) for
 > what those numbers do and do not support.
 >
 > **Target platform:** macOS only  

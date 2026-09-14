@@ -36,11 +36,24 @@ class TransferOut(BaseModel):
     destination: str
 
 
-def _resolve_destination(workspace: Workspace, raw: str) -> Path:
-    """Destinations may not exist yet, so validate the parent then rejoin."""
+def _resolve_destination(workspace: Workspace, raw: str, source: Path | None = None) -> Path:
+    """Resolve a destination that may not exist yet.
+
+    The parent is resolved (which enforces workspace containment) and the leaf
+    rejoined, because `Workspace.resolve` requires a path to exist.
+
+    When the destination is an existing directory and a source is given, the
+    target becomes `destination/source.name` - the universal `mv file dir/`
+    convention. Without this, a model proposing `move a.pdf -> PDF` was refused
+    with "destination exists", which is what made qwen3:14b fail the multi-step
+    organise task on every repeat.
+    """
     candidate = Path(raw).expanduser()
     parent = workspace.resolve(str(candidate.parent))
-    return parent / candidate.name
+    target = parent / candidate.name
+    if source is not None and target.is_dir():
+        return target / source.name
+    return target
 
 
 class MkdirTool(Tool):
@@ -61,7 +74,7 @@ class MkdirTool(Tool):
 
 
 class MoveTool(Tool):
-    """Move or rename a file. Use this to rename; there is no rename tool."""
+    """Move or rename a file. Destination may be a folder. No rename tool exists."""
 
     name = "filesystem.move"
     version = "1"
@@ -73,7 +86,7 @@ class MoveTool(Tool):
     def run(self, args: BaseModel, workspace: Workspace) -> ToolResult:
         assert isinstance(args, TransferIn)
         source = workspace.resolve(args.source)
-        destination = _resolve_destination(workspace, args.destination)
+        destination = _resolve_destination(workspace, args.destination, source)
         if destination.exists():
             return ToolResult(ok=False, data={"error": f"destination exists: {destination}"})
         shutil.move(str(source), str(destination))
@@ -81,7 +94,7 @@ class MoveTool(Tool):
 
 
 class CopyTool(Tool):
-    """Copy a file or directory, leaving the source in place."""
+    """Copy a file or directory, leaving the source. Destination may be a folder."""
 
     name = "filesystem.copy"
     version = "1"
@@ -93,7 +106,7 @@ class CopyTool(Tool):
     def run(self, args: BaseModel, workspace: Workspace) -> ToolResult:
         assert isinstance(args, TransferIn)
         source = workspace.resolve(args.source)
-        destination = _resolve_destination(workspace, args.destination)
+        destination = _resolve_destination(workspace, args.destination, source)
         if destination.exists():
             return ToolResult(ok=False, data={"error": f"destination exists: {destination}"})
         if source.is_dir():
