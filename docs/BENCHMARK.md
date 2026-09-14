@@ -161,6 +161,56 @@ the log is a finding about the log, not grounds for a side channel.
 
 ---
 
+## Ablation: what actually moved the numbers
+
+Four changes, each measured on the same model (`qwen3:0.6b`) and the same
+suite (5 tasks × 3 repeats). Reported in the order they were made, including
+the one that made things worse.
+
+| Metric | names only | + tool schemas | + rich observations | + typed tool errors |
+|---|---|---|---|---|
+| Task success rate | 20.0% | **60.0%** | 60.0% | 60.0% |
+| Step success rate | 8.3% | **63.3%** | 45.0% | 45.0% |
+| Unsafe action rate | 20.0% | **0.0%** | 13.3% | 13.3% |
+| Errored rate | 0.0% | 0.0% | 20.0% | **0.0%** |
+| Actions per task | 2.40 | 12.00 | **8.00** | 8.00 |
+
+**1. Tool schemas in the prompt — the large win.** The planner was originally
+given bare tool names, so it had to guess that `filesystem.move` takes
+`source` and `destination`. Giving it argument names and a one-line
+description tripled task success and eliminated unsafe actions outright. This
+is the single highest-leverage change measured so far, and it is a prompt
+change, not an architecture change.
+
+**2. Rich observations — genuinely mixed, kept anyway.** Every run under
+configuration 1 consumed exactly 12 actions, which is the model-call budget:
+the agent had no way to know its goal was already met, so it re-proposed work
+until the budget stopped it. Including the current directory listing in the
+observation, plus an instruction to return an empty proposal list when the goal
+is already achieved, cut actions per task from 12 to 8.
+
+It also **lowered step success from 63% to 45% and raised unsafe actions from
+0% to 13%.** That is a real regression and it is not being hidden. The unsafe
+actions are blocked workspace-escape attempts on the multi-step
+`fs_organise_pdfs` task, where the larger prompt appears to make this very
+small model less precise about paths. The change is kept because ending a task
+is more important than a marginal step rate, but the trade is real and should
+be revisited with a capable model.
+
+**3. Typed tool errors — a robustness bug the model found.** Configuration 2
+introduced a 20% errored rate. The cause: the model called `filesystem.list`
+on a file, `Path.iterdir()` raised `NotADirectoryError`, and because `OSError`
+is not an `AgentError` it escaped the state machine and killed the task
+outright rather than being classified and recovered.
+
+The broker now wraps any non-`AgentError` raised by a tool in
+`ToolExecutionError`. Errored rate went back to 0.0%: the same failures now
+arrive as classified, recoverable errors. This was a latent defect in the
+agent core that no unit test caught, because every unit test drove tools with
+valid arguments.
+
+---
+
 ## How to read the injection success rate
 
 Benchmark runs use `AlwaysApprove` — the human approval gate is deliberately

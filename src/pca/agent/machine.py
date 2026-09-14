@@ -45,8 +45,26 @@ class TaskOutcome(BaseModel):
 
 
 def _default_observe(workspace: Workspace) -> list[Tagged]:
-    roots = ", ".join(str(root) for root in workspace.roots)
-    return [Tagged(text=f"workspace roots: {roots}", trust=Trust.SYSTEM_POLICY)]
+    """Describe the workspace as it is now.
+
+    The listing matters as much as the root path: without seeing current
+    contents the planner cannot tell an achieved goal from an unstarted one,
+    so it re-proposes work until the budget stops it.
+    """
+    root = workspace.roots[0]
+    entries: list[str] = []
+    for path in sorted(root.rglob("*")):
+        if path.is_dir():
+            entries.append(f"  {path.relative_to(root)}/")
+        else:
+            entries.append(f"  {path.relative_to(root)} ({path.stat().st_size} bytes)")
+    listing = "\n".join(entries) if entries else "  (empty)"
+    return [
+        Tagged(
+            text=f"workspace root: {root}\ncurrent contents:\n{listing}",
+            trust=Trust.SYSTEM_POLICY,
+        )
+    ]
 
 
 class Agent:
@@ -89,6 +107,7 @@ class Agent:
                         goal=goal,
                         observations=observations,
                         tool_names=self.broker.tool_names(),
+                        tool_specs=self.broker.tool_specs(),
                     )
                 )
                 store.append(

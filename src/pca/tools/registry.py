@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ValidationError
 
 from pca.core.errors import SchemaRejected
-from pca.core.types import ActionProposal
+from pca.core.types import ActionProposal, ToolSpec
 from pca.tools.base import Tool
+
+
+def _spec_for(tool: Tool) -> ToolSpec:
+    schema: dict[str, Any] = tool.Input.model_json_schema()
+    properties = list(schema.get("properties", {}))
+    required = list(schema.get("required", []))
+    summary = (tool.__doc__ or tool.name).strip().splitlines()[0]
+    return ToolSpec(
+        name=tool.name,
+        version=tool.version,
+        summary=summary,
+        required=required,
+        optional=[p for p in properties if p not in required],
+    )
 
 
 class ToolRegistry:
@@ -20,6 +36,15 @@ class ToolRegistry:
 
     def names(self) -> list[str]:
         return sorted(self._tools)
+
+    def specs(self) -> list[ToolSpec]:
+        """Describe every tool for the planner: names plus argument shapes.
+
+        The planner was previously given bare names, so it had to guess that
+        filesystem.move takes source and destination. A real model run produced
+        invalid arguments in 6 of 15 tasks.
+        """
+        return [_spec_for(self._tools[name]) for name in self.names()]
 
     def get(self, name: str) -> Tool:
         try:

@@ -44,6 +44,8 @@ def _resolve_destination(workspace: Workspace, raw: str) -> Path:
 
 
 class MkdirTool(Tool):
+    """Create a directory, including any missing parents."""
+
     name = "filesystem.mkdir"
     version = "1"
     capability = Capability.FILESYSTEM_WRITE
@@ -59,6 +61,8 @@ class MkdirTool(Tool):
 
 
 class MoveTool(Tool):
+    """Move or rename a file. Use this to rename; there is no rename tool."""
+
     name = "filesystem.move"
     version = "1"
     capability = Capability.FILESYSTEM_WRITE
@@ -77,6 +81,8 @@ class MoveTool(Tool):
 
 
 class CopyTool(Tool):
+    """Copy a file or directory, leaving the source in place."""
+
     name = "filesystem.copy"
     version = "1"
     capability = Capability.FILESYSTEM_WRITE

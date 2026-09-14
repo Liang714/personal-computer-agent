@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from pca.agent.limits import BudgetTracker
 from pca.broker.approval import ApprovalRequest, ApprovalUI
-from pca.core.errors import ApprovalRefused, BudgetExhausted
-from pca.core.types import ActionProposal, RiskLevel, ToolResult
+from pca.core.errors import AgentError, ApprovalRefused, BudgetExhausted, ToolExecutionError
+from pca.core.types import ActionProposal, RiskLevel, ToolResult, ToolSpec
 from pca.policy.paths import Workspace
 from pca.policy.permissions import PermissionPolicy
 from pca.policy.risk import classify, requires_approval
@@ -40,6 +40,10 @@ class CapabilityBroker:
     def tool_names(self) -> list[str]:
         """The tool vocabulary the planner is allowed to draw from."""
         return self._registry.names()
+
+    def tool_specs(self) -> list[ToolSpec]:
+        """The same vocabulary, with argument shapes. Pure data, no callables."""
+        return self._registry.specs()
 
     def execute(self, task_id: str, proposal: ActionProposal) -> ToolResult:
         """Run one action through every gate, in order, auditing each stage."""
@@ -78,8 +82,16 @@ class CapabilityBroker:
         # 5. Budget, charged only once the action is actually going to run.
         self.budget.charge_action()
 
-        # 6. Execute.
-        result = tool.run(args, self._workspace)
+        # 6. Execute. A tool that raises a raw OS error (listing a file as if it
+        # were a directory, a vanished path, a permission problem) must not
+        # escape the typed hierarchy: recovery dispatches on error type, and an
+        # unclassified exception kills the task instead of being recovered.
+        try:
+            result = tool.run(args, self._workspace)
+        except AgentError:
+            raise
+        except Exception as exc:
+            raise ToolExecutionError(f"{tool.name} failed: {type(exc).__name__}: {exc}") from exc
         self.store.append(
             task_id,
             EventKind.ACTION_EXECUTED,

@@ -62,3 +62,23 @@ class VerificationResult(BaseModel):
 
     status: Literal["success", "failed", "ambiguous"]
     detail: str = ""
+
+
+class ToolSpec(BaseModel):
+    """What the planner is told about a tool: a name and an argument shape.
+
+    Pure data. It carries no callable and no registry handle, so handing it to
+    the planner does not breach the planner/tools separation (spec D4).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str
+    version: str
+    summary: str
+    required: list[str]
+    optional: list[str]
+
+    def render(self) -> str:
+        args = ", ".join([*(f"{a}" for a in self.required), *(f"{a}?" for a in self.optional)])
+        return f"{self.name}({args}) - {self.summary}"

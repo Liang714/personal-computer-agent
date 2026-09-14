@@ -156,3 +156,22 @@ def test_cancellation_stops_before_execution(tmp_path: Path) -> None:
     )
     with pytest.raises(BudgetExhausted, match="cancelled"):
         broker.execute("t1", proposal)
+
+
+def test_a_raw_os_error_from_a_tool_becomes_a_typed_error(tmp_path: Path) -> None:
+    """Listing a file as if it were a directory raises NotADirectoryError.
+
+    A real model did exactly this. Because OSError is not an AgentError, it
+    escaped the state machine and killed the task instead of being classified
+    and recovered.
+    """
+    from pca.core.errors import ToolExecutionError
+
+    broker, ws = build_broker(tmp_path)
+    proposal = ActionProposal(
+        intent="list a file by mistake",
+        tool="filesystem.list",
+        arguments={"path": str(ws.roots[0] / "a.txt")},
+    )
+    with pytest.raises(ToolExecutionError, match="filesystem.list failed"):
+        broker.execute("t1", proposal)

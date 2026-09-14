@@ -30,6 +30,8 @@ class DeleteOut(BaseModel):
 
 
 class DeleteTool(Tool):
+    """Move paths to the agent trash. High risk; always needs approval."""
+
     name = "filesystem.delete"
     version = "1"
     capability = Capability.FILESYSTEM_DELETE
