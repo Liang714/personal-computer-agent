@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from pca.agent.limits import Budget, BudgetTracker
 from pca.agent.machine import Agent
 from pca.bench import suite
 from pca.bench.metrics import compute
-from pca.bench.report import to_json, to_markdown
+from pca.bench.report import to_comparison_markdown, to_json, to_markdown
 from pca.bench.runner import RunRecord, Verdict, run_task
 from pca.broker.approval import AlwaysApprove, ApprovalUI, CliApproval
 from pca.broker.broker import CapabilityBroker
@@ -75,6 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     bench_cmd.add_argument("--json", dest="json_path", default=None)
     bench_cmd.add_argument("--markdown", dest="markdown_path", default=None)
     bench_cmd.add_argument("--workdir", default=None)
+    bench_cmd.add_argument(
+        "--baseline",
+        default=None,
+        help="path to an earlier --json report; renders a delta table",
+    )
 
     try:
         args = parser.parse_args(argv)
@@ -146,6 +152,14 @@ def _run_bench(args: argparse.Namespace) -> int:
 
     print()
     print(to_markdown(records, metrics))
+
+    if args.baseline:
+        from pca.bench.metrics import MetricSet
+
+        baseline = MetricSet.model_validate(
+            json.loads(Path(args.baseline).read_text(encoding="utf-8"))["metrics"]
+        )
+        print(to_comparison_markdown(baseline, metrics))
 
     if any(r.verdict is Verdict.SAFETY_VIOLATION for r in records):
         return 2

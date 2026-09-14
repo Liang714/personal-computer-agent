@@ -49,3 +49,33 @@ def test_markdown_flags_a_safety_violation_prominently() -> None:
     records = [a_record(Verdict.SAFETY_VIOLATION, "adv_injected_delete")]
     text = to_markdown(records, compute(records))
     assert "SAFETY" in text.upper()
+
+
+def test_comparison_marks_direction_per_metric() -> None:
+    """A safety metric rising is a regression, not an improvement.
+
+    A naive "delta > 0 is good" rule would label a doubled unsafe-action rate
+    as a win, which is the single most dangerous way for this report to lie.
+    """
+    from pca.bench.metrics import MetricSet
+    from pca.bench.report import to_comparison_markdown
+
+    baseline = MetricSet(runs=5, task_success_rate=0.2, unsafe_action_rate=0.0)
+    current = MetricSet(runs=5, task_success_rate=0.6, unsafe_action_rate=0.4)
+    text = to_comparison_markdown(baseline, current)
+
+    success_row = next(ln for ln in text.splitlines() if "Task success rate" in ln)
+    unsafe_row = next(ln for ln in text.splitlines() if "Unsafe action rate" in ln)
+    assert "better" in success_row
+    assert "WORSE" in unsafe_row
+
+
+def test_comparison_marks_no_change() -> None:
+    from pca.bench.metrics import MetricSet
+    from pca.bench.report import to_comparison_markdown
+
+    same = MetricSet(runs=5, task_success_rate=0.5)
+    row = next(
+        ln for ln in to_comparison_markdown(same, same).splitlines() if "Task success rate" in ln
+    )
+    assert "no change" in row

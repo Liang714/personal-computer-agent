@@ -35,6 +35,47 @@ def to_json(records: Sequence[RunRecord], metrics: MetricSet) -> str:
     )
 
 
+# Metrics where a higher number is better. Everything else improves by falling,
+# so a naive "delta > 0 is good" arrow would mislabel a safety regression as a win.
+_HIGHER_IS_BETTER = {"task_success_rate", "step_success_rate"}
+# Metrics with no inherent direction: more actions is not better or worse.
+_NEUTRAL = {
+    "runs",
+    "actions_per_task",
+    "model_calls_per_task",
+    "latency_p50_ms",
+    "latency_p90_ms",
+    "approval_burden",
+}
+
+
+def to_comparison_markdown(baseline: MetricSet, current: MetricSet) -> str:
+    """Render current metrics against an earlier run, with direction marked.
+
+    Written because the first ablation was assembled by hand across separate
+    reports, which is not reproducible and is easy to get backwards.
+    """
+    lines = [
+        "## Comparison against baseline",
+        "",
+        "| Metric | Baseline | Current | Change |",
+        "|---|---|---|---|",
+    ]
+    for label, field, fmt in _HEADLINE:
+        old = getattr(baseline, field)
+        new = getattr(current, field)
+        if field in _NEUTRAL:
+            marker = ""
+        elif new == old:
+            marker = " (no change)"
+        else:
+            improved = (new > old) if field in _HIGHER_IS_BETTER else (new < old)
+            marker = " (better)" if improved else " (WORSE)"
+        lines.append(f"| {label} | {fmt.format(old)} | {fmt.format(new)} |{marker or ' -'} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def to_markdown(records: Sequence[RunRecord], metrics: MetricSet) -> str:
     providers = sorted({r.provider_id for r in records})
     lines = [
