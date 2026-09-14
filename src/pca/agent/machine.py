@@ -1,0 +1,135 @@
+"""The task state machine (spec §10).
+
+Proposals arrive in batches but execute strictly one at a time, with a fresh
+verification between each. A batch whose step does not verify is abandoned:
+the agent re-plans from what it observed, not from what it assumed.
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Callable
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict
+
+from pca.broker.broker import CapabilityBroker
+from pca.core.errors import AgentError, AmbiguousTarget, ApprovalRefused
+from pca.core.provenance import Tagged, Trust
+from pca.models.gateway import ModelProvider, PlanRequest
+from pca.policy.paths import Workspace
+from pca.store.events import EventKind
+from pca.verify.filesystem import verify_filesystem
+
+
+class State(StrEnum):
+    IDLE = "idle"
+    UNDERSTAND = "understand"
+    OBSERVE = "observe"
+    PLAN = "plan"
+    ACT = "act"
+    VERIFY = "verify"
+    RECOVER = "recover"
+    ASK_USER = "ask_user"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+class TaskOutcome(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: str
+    state: State
+    summary: str
+    actions_taken: int
+
+
+def _default_observe(workspace: Workspace) -> list[Tagged]:
+    roots = ", ".join(str(root) for root in workspace.roots)
+    return [Tagged(text=f"workspace roots: {roots}", trust=Trust.SYSTEM_POLICY)]
+
+
+class Agent:
+    def __init__(
+        self,
+        *,
+        broker: CapabilityBroker,
+        provider: ModelProvider,
+        workspace: Workspace,
+        observe: Callable[[Workspace], list[Tagged]] | None = None,
+    ) -> None:
+        self.broker = broker
+        self._provider = provider
+        self._workspace = workspace
+        self._observe = observe or _default_observe
+
+    def run(self, goal: str, task_id: str | None = None) -> TaskOutcome:
+        task_id = task_id or uuid.uuid4().hex[:12]
+        store = self.broker.store
+        store.append(task_id, EventKind.TASK_STARTED, {"goal": goal})
+
+        actions = 0
+        state = State.OBSERVE
+        summary = "nothing to do"
+
+        try:
+            while True:
+                observations = self._observe(self._workspace)
+                store.append(task_id, EventKind.OBSERVED, {"count": len(observations)})
+
+                state = State.PLAN
+                self.broker.budget.charge_model_call()
+                proposals = self._provider.propose(
+                    PlanRequest(
+                        goal=goal,
+                        observations=observations,
+                        tool_names=self.broker.tool_names(),
+                    )
+                )
+                if not proposals:
+                    state = State.COMPLETE
+                    summary = f"completed after {actions} action(s)"
+                    break
+
+                state = State.ACT
+                proposal = proposals[0]
+                self.broker.execute(task_id, proposal)
+                actions += 1
+
+                state = State.VERIFY
+                verdict = verify_filesystem(proposal.expected, self._workspace)
+                store.append(
+                    task_id,
+                    EventKind.VERIFIED,
+                    {"status": verdict.status, "detail": verdict.detail},
+                )
+                if verdict.status == "failed":
+                    # Abandon the rest of the batch; the world is not as planned.
+                    store.append(
+                        task_id,
+                        EventKind.RECOVERY_ATTEMPTED,
+                        {"reason": verdict.detail},
+                    )
+                    summary = f"stopped after verification failed: {verdict.detail}"
+                    state = State.FAILED
+                    break
+
+        except ApprovalRefused as exc:
+            state = State.FAILED
+            summary = f"user declined the action: {exc}"
+            store.append(task_id, EventKind.ERROR, {"error": str(exc)})
+        except AmbiguousTarget as exc:
+            state = State.ASK_USER
+            summary = f"stopped rather than guessing: {exc}"
+            store.append(task_id, EventKind.ERROR, {"error": str(exc)})
+        except AgentError as exc:
+            state = State.FAILED
+            summary = f"{type(exc).__name__}: {exc}"
+            store.append(task_id, EventKind.ERROR, {"error": str(exc)})
+
+        store.append(
+            task_id,
+            EventKind.TASK_FINISHED,
+            {"state": state.value, "actions": actions, "summary": summary},
+        )
+        return TaskOutcome(task_id=task_id, state=state, summary=summary, actions_taken=actions)

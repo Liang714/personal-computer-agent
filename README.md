@@ -3,6 +3,13 @@
 > A production-grade, safety-first AI computer-use agent designed for macOS.
 >
 > **Status:** Architecture / Pre-MVP  
+>
+> **Implementation status:** Sub-project 1 of 5 (headless agent core) is
+> implemented and tested. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+> [`docs/SECURITY.md`](docs/SECURITY.md), and
+> [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The macOS capability layer,
+> browser tools, SwiftUI app, and benchmark harness are not yet built.
+>
 > **Target platform:** macOS only  
 > **Distribution target:** Signed + notarized downloadable `.dmg` initially, with App Store feasibility evaluated separately.
 
@@ -2123,3 +2130,19 @@ The central product principle remains:
 ```
 
 **Build the smallest trustworthy agent first. Then increase autonomy.**
+
+---
+
+## Running with a local model
+
+The agent core runs fully without any model. To enable real planning with a
+free, local, keyless model:
+
+1. Install Ollama from https://ollama.com/download
+2. Pull a Qwen 3 model: `ollama pull qwen3:14b` (or `qwen3:27b` if you have
+   the memory to spare)
+3. Run the live provider test: `.venv/bin/pytest -m ollama -v`
+
+CI never runs these tests. The default suite uses a deterministic scripted
+provider so that a failing safety test always means the safety layer broke,
+never that the model had an off day.
