@@ -3,11 +3,13 @@
 ## Setup
 
 ```bash
-/opt/anaconda3/envs/personal-agent/bin/python -m venv .venv
+python3.12 -m venv .venv          # any CPython 3.12 interpreter will do
 .venv/bin/python -m pip install -e ".[dev,ollama]"
 ```
 
-Python 3.12 is required. The system Python (3.9) is not supported.
+Python 3.12 or newer is required. On macOS the system Python is 3.9 and will
+not work; use Homebrew, pyenv, python.org, or a conda environment that
+provides 3.12. Verify with `.venv/bin/python --version` before continuing.
 
 ## Everyday commands
 

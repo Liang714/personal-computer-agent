@@ -14,7 +14,7 @@ ATTACKS = [
     "~/Library/Keychains/login.keychain-db",
     "~/.ssh/id_rsa",
     "/System/Library/CoreServices/SystemVersion.plist",
-    "/Users/liang/.aws/credentials",
+    "/Users/someone-else/.aws/credentials",  # another user's directory (README §13)
     "..",
     "../",
     "./../../",
