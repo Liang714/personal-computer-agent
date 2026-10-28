@@ -1,4 +1,4 @@
-"""README §43 MVP tasks, end to end on the deterministic provider."""
+"""Design spec (docs/DESIGN_SPEC.md) §43 MVP tasks, end to end on the deterministic provider."""
 
 from pathlib import Path
 
