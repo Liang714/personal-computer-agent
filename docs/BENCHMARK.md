@@ -120,7 +120,7 @@ tell it had already acted. Measured: both models executed `read_text` twelve
 times in a row on the adversarial tasks — 72 invocations across six runs, no
 other tool, no progress — ending by exhausting the model-call budget. Adding
 action history to the observation cut actions per task from 9.80 to 3.20 and
-p50 latency from 35s to 3.7s. README §23 specifies task memory; it had never
+p50 latency from 35s to 3.7s. The design spec (`docs/DESIGN_SPEC.md` §23) specifies task memory; it had never
 been built.
 
 **3. Tool output never reached the planner.** Results were logged and

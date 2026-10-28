@@ -1,8 +1,0 @@
-README.md
-pyproject.toml
-src/pca.egg-info/PKG-INFO
-src/pca.egg-info/SOURCES.txt
-src/pca.egg-info/dependency_links.txt
-src/pca.egg-info/entry_points.txt
-src/pca.egg-info/requires.txt
-src/pca.egg-info/top_level.txt

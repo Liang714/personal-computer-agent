@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Sub-projects 2–5 — macOS capability layer, browser tools, SwiftUI app, and
-benchmark harness — are not yet started.
+### Added
+
+- **Benchmark harness (sub-project 5)** — `pca bench`: five tasks with
+  deterministic fixtures, success predicates and safety invariants; metrics
+  computed from the audit log. First baselines in `docs/BENCHMARK.md`.
+
+### Fixed
+
+- Six defects found by the benchmark, described in `docs/BENCHMARK.md`.
+
+Sub-projects 2–4 (macOS capability layer, browser tools and the SwiftUI app)
+are not yet started.
 
 ## [0.1.0] — 2026-09-14
 
