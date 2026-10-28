@@ -45,7 +45,7 @@ Requires Python 3.12 or newer.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,ollama]"
-pytest                                    # 203 tests, no model or network needed
+pytest                                    # 203 tests (97% line coverage), no model or network needed
 pca bench --model scripted --repeats 3    # control run: checks every task is correctly specified
 ```
 
